@@ -10,7 +10,8 @@ comrak = { version = "0.52", default-features = false }
 htmd = "0.5.4"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSPasteboard"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSArray"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSArray", "NSData"] }
+serde_json = "1.0.151"
 
 [lints.clippy]
 pedantic = "deny"

@@ -10,13 +10,21 @@ use htmd::options::{BulletListMarker, Options as HtmlOptions};
 use objc2_app_kit::NSPasteboard;
 use objc2_foundation::NSString;
 
+mod chromium;
+mod quill;
+
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 /// The pasteboard flavors we read and write.
 mod flavor {
     pub const HTML: &str = "public.html";
     pub const PLAIN: &str = "public.utf8-plain-text";
+    pub const WEB_CUSTOM: &str = "org.chromium.web-custom-data";
 }
+
+/// The custom `DataTransfer` type under which Slack's editor offers the Quill
+/// delta behind a copied message.
+const SLACK_DELTA: &str = "slack/texty";
 
 /// Which direction to convert.
 enum Mode {
@@ -110,6 +118,12 @@ fn read_clipboard(uti: &str) -> Option<String> {
     pb.stringForType(&ns_type).map(|s| s.to_string())
 }
 
+fn read_clipboard_data(uti: &str) -> Option<Vec<u8>> {
+    let pb = NSPasteboard::generalPasteboard();
+    let ns_type = NSString::from_str(uti);
+    pb.dataForType(&ns_type).map(|data| data.to_vec())
+}
+
 fn write_clipboard(html: &str, plain: &str) {
     let html_ns = NSString::from_str(html);
     let plain_ns = NSString::from_str(plain);
@@ -140,13 +154,26 @@ fn html_to_markdown(html: &str) -> Result<String> {
         .convert(html)?)
 }
 
-/// Emits the pasteboard's HTML flavor as Markdown, falling back to its plain
-/// text when nothing rich is on offer.
+fn slack_delta() -> Option<String> {
+    let custom = chromium::parse(&read_clipboard_data(flavor::WEB_CUSTOM)?)?;
+    custom.get(SLACK_DELTA).cloned()
+}
+
+/// Reads the richest flavor the pasteboard offers as Markdown: HTML first,
+/// then the Quill delta Slack hides in Chromium's custom-data flavor, and
+/// finally the plain text, emitted unchanged.
+fn pasteboard_markdown() -> Result<String> {
+    if let Some(html) = read_clipboard(flavor::HTML) {
+        return html_to_markdown(&html);
+    }
+    if let Some(delta) = slack_delta() {
+        return quill::to_markdown(&delta);
+    }
+    Ok(read_clipboard(flavor::PLAIN).ok_or("pasteboard holds no text")?)
+}
+
 fn paste() -> Result<()> {
-    let markdown = match read_clipboard(flavor::HTML) {
-        Some(html) => html_to_markdown(&html)?,
-        None => read_clipboard(flavor::PLAIN).ok_or("pasteboard holds no text")?,
-    };
+    let markdown = pasteboard_markdown()?;
     let mut stdout = io::stdout();
     stdout.write_all(markdown.as_bytes())?;
     if !markdown.ends_with('\n') {

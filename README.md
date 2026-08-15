@@ -17,5 +17,11 @@ Markdown to stdout.
 mdrich --paste
 ```
 
-Copy from a web page or an email, then run it to get Markdown back. When the
-pasteboard carries no HTML flavor, its plain text is emitted unchanged.
+Copy from a web page or an email, then run it to get Markdown back.
+
+Slack is a special case. Copying a message there leaves no HTML on the
+pasteboard: Slack's editor state travels instead as a Quill delta inside
+Chromium's `org.chromium.web-custom-data` flavor, which only another Chromium
+app can read. `--paste` unpacks that flavor and renders the delta, so
+formatting survives the trip. Failing both, the pasteboard's plain text is
+emitted unchanged.
