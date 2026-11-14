@@ -51,7 +51,7 @@ impl<'a> Reader<'a> {
         let len = usize::try_from(self.u32()?).ok()?;
         let field = self.take(len.checked_mul(2)?)?;
         let units: Vec<u16> = field
-            .chunks_exact(2)
+            .as_chunks::<2>().0.iter()
             .map(|unit| u16::from_le_bytes([unit[0], unit[1]]))
             .collect();
         String::from_utf16(&units).ok()
